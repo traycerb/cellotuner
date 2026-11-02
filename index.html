@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Cello Tuner</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --good: #10b981;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 20px 24px;
+      overflow: hidden;
+      transition: background-color 0.2s ease;
+    }
+
+    body.in-tune-bg {
+      background-color: #063829;
+    }
+
+    /* Header Bar */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      z-index: 10;
+    }
+
+    .brand {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .status-dot.active {
+      background: var(--good);
+      box-shadow: 0 0 8px var(--good);
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+    }
+
+    .pill-btn {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid #334155;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .pill-btn.active {
+      background: var(--accent);
+      color: #0f172a;
+      border-color: var(--accent);
+    }
+
+    /* Main Tuner Display */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      my: auto;
+    }
+
+    .gauge-container {
+      width: 100%;
+      max-width: 460px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    svg.gauge {
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    .needle {
+      transition: transform 0.07s cubic-bezier(0.2, 0.8, 0.2, 1), stroke 0.15s;
+      transform-origin: 200px 190px;
+    }
+
+    .readout {
+      text-align: center;
+      margin-top: -15px;
+    }
+
+    .note-display {
+      font-size: clamp(4.5rem, 15vw, 7rem);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.15s, text-shadow 0.15s;
+    }
+
+    .note-display.in-tune {
+      color: var(--good);
+      text-shadow: 0 0 24px rgba(16, 185, 129, 0.4);
+    }
+
+    .octave-sub {
+      font-size: 0.45em;
+      font-weight: 600;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+
+    .cents-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 16px;
+      border-radius: 999px;
+      background: var(--panel);
+      font-size: 1.4rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+    }
+
+    .hz-display {
+      margin-top: 6px;
+      font-size: 1.05rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tuning-hint {
+      margin-top: 10px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      height: 1.6rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    /* Reference Drone Buttons */
+    footer {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .footer-label {
+      text-align: center;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .string-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .string-btn {
+      background: var(--panel);
+      border: 2px solid #334155;
+      border-radius: 16px;
+      padding: 14px 8px;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .string-btn.target-highlight {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    .string-btn.playing {
+      background: var(--accent);
+      color: #0f172a;
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    }
+
+    .string-btn .s-note {
+      font-size: 1.75rem;
+      font-weight: 800;
+    }
+
+    .string-btn .s-hz {
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+
+    .string-btn .s-icon {
+      font-size: 0.75rem;
+      margin-top: 6px;
+      font-weight: 600;
+      opacity: 0.75;
+    }
+
+    /* Start Overlay */
+    #start-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 24px;
+      text-align: center;
+    }
+
+    #start-overlay.hidden {
+      display: none;
+    }
+
+    .start-card {
+      background: var(--panel);
+      border: 1px solid #334155;
+      border-radius: 24px;
+      padding: 36px 28px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+
+    .start-card h1 {
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+
+    .start-card p {
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 28px;
+      font-size: 1.05rem;
+    }
+
+    .start-btn {
+      background: var(--good);
+      color: #052e16;
+      border: none;
+      border-radius: 16px;
+      padding: 18px 32px;
+      font-size: 1.35rem;
+      font-weight: 800;
+      width: 100%;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
+    }
+
+    .error-msg {
+      color: var(--bad);
+      margin-top: 16px;
+      font-size: 0.95rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Initial Tap Overlay (Required by mobile browsers to start AudioContext) -->
+  <div id="start-overlay">
+    <div class="start-card">
+      <h1>Cello Tuner</h1>
+      <p>Place the tablet on your music stand and tap below to activate the microphone.</p>
+      <button class="start-btn" id="start-btn">Tap to Start Tuning</button>
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+  </div>
+
+  <header>
+    <div class="brand">
+      <div class="status-dot" id="mic-dot"></div>
+      <span>Cello Tuner</span>
+    </div>
+    <div class="controls">
+      <button class="pill-btn active" id="mode-btn" title="Switch between Cello Strings and Chromatic">Cello Lock</button>
+      <button class="pill-btn" id="cal-btn" title="Toggle A4 calibration">A = 440 Hz</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="gauge-container">
+      <svg class="gauge" viewBox="0 0 400 210">
+        <!-- Outer Track Arc (-50 to +50 cents mapped to -75deg to +75deg) -->
+        <path d="M 35 160 A 170 170 0 0 1 365 160" fill="none" stroke="#334155" stroke-width="12" stroke-linecap="round"/>
+        
+        <!-- Green Center Sweet-Spot Arc (-5 to +5 cents) -->
+        <path d="M 185 20.6 A 170 170 0 0 1 215 20.6" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="butt"/>
+
+        <!-- Tick Marks -->
+        <g stroke="#64748b" stroke-width="2">
+          <line x1="200" y1="8" x2="200" y2="28" stroke="#10b981" stroke-width="4"/> <!-- 0c -->
+          <line x1="200" y1="12" x2="200" y2="26" transform="rotate(-15 200 190)"/> <!-- -10c -->
+          <line x1="200" y1="12" x2="200" y2="26" transform="rotate(-30 200 190)"/> <!-- -20c -->
+          <line x1="200" y1="10" x2="200" y2="28" transform="rotate(-45 200 190)" stroke-width="3"/> <!-- -30c -->
+          <line x1="200" y1="12" x2="200" y2="26" transform="rotate(-60 200 190)"/> <!-- -40c -->
+          <line x1="200" y1="8"  x2="200" y2="28" transform="rotate(-75 200 190)" stroke-width="3"/> <!-- -50c -->
+
+          <line x1="200" y1="12" x2="200" y2="26" transform="rotate(15 200 190)"/>  <!-- +10c -->
+          <line x1="200" y1="12" x2="200" y2="26" transform="rotate(30 200 190)"/>  <!-- +20c -->
+          <line x1="200" y1="10" x2="200" y2="28" transform="rotate(45 200 190)" stroke-width="3"/>  <!-- +30c -->
+          <line x1="200" y1="12" x2="200" y2="26" transform="rotate(60 200 190)"/>  <!-- +40c -->
+          <line x1="200" y1="8"  x2="200" y2="28" transform="rotate(75 200 190)" stroke-width="3"/>  <!-- +50c -->
+        </g>
+
+        <!-- Labels -->
+        <text x="35" y="190" fill="#64748b" font-size="13" font-weight="700" text-anchor="middle">♭ FLAT</text>
+        <text x="365" y="190" fill="#64748b" font-size="13" font-weight="700" text-anchor="middle">SHARP ♯</text>
+
+        <!-- Needle -->
+        <g class="needle" id="needle" transform="rotate(0)">
+          <line x1="200" y1="190" x2="200" y2="22" stroke="#94a3b8" stroke-width="6" stroke-linecap="round" id="needle-line"/>
+          <circle cx="200" cy="190" r="12" fill="#f8fafc"/>
+        </g>
+      </svg>
+
+      <div class="readout">
+        <div class="note-display" id="note-el">--</div>
+        <div class="cents-badge" id="cents-el">Play a string</div>
+        <div class="hz-display" id="hz-el">0.0 Hz</div>
+        <div class="tuning-hint" id="hint-el"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-label">Tap a string for reference tone</div>
+    <div class="string-grid" id="string-grid">
+      <button class="string-btn" data-idx="0">
+        <span class="s-note">C<small>2</small></span>
+        <span class="s-hz" id="str-hz-0">65.4 Hz</span>
+        <span class="s-icon">🔊 Tone</span>
+      </button>
+      <button class="string-btn" data-idx="1">
+        <span class="s-note">G<small>2</small></span>
+        <span class="s-hz" id="str-hz-1">98.0 Hz</span>
+        <span class="s-icon">🔊 Tone</span>
+      </button>
+      <button class="string-btn" data-idx="2">
+        <span class="s-note">D<small>3</small></span>
+        <span class="s-hz" id="str-hz-2">146.8 Hz</span>
+        <span class="s-icon">🔊 Tone</span>
+      </button>
+      <button class="string-btn" data-idx="3">
+        <span class="s-note">A<small>3</small></span>
+        <span class="s-hz" id="str-hz-3">220.0 Hz</span>
+        <span class="s-icon">🔊 Tone</span>
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    // --- 1. Embedded PWA Manifest & Icon ---
+    (function setupPWA() {
+      const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="110" fill="#0f172a"/>
+        <path d="M 96 360 A 180 180 0 0 1 416 360" fill="none" stroke="#334155" stroke-width="32" stroke-linecap="round"/>
+        <line x1="256" y1="360" x2="256" y2="120" stroke="#10b981" stroke-width="24" stroke-linecap="round"/>
+        <circle cx="256" cy="360" r="32" fill="#f8fafc"/>
+      </svg>`;
+      const iconUrl = "data:image/svg+xml;utf8," + encodeURIComponent(iconSvg);
+
+      const linkIcon = document.createElement("link");
+      linkIcon.rel = "icon";
+      linkIcon.href = iconUrl;
+      document.head.appendChild(linkIcon);
+
+      const manifest = {
+        name: "Cello Tuner",
+        short_name: "Cello Tuner",
+        start_url: ".",
+        display: "standalone",
+        background_color: "#0f172a",
+        theme_color: "#0f172a",
+        orientation: "portrait",
+        icons: [{ src: iconUrl, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
+      const linkManifest = document.createElement("link");
+      linkManifest.rel = "manifest";
+      linkManifest.href = URL.createObjectURL(manifestBlob);
+      document.head.appendChild(linkManifest);
+    })();
+
+    // --- 2. State & Constants ---
+    const NOTE_NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+    // MIDI numbers for Cello Strings: C2 (36), G2 (43), D3 (50), A3 (57)
+    const CELLO_MIDI = [36, 43, 50, 57];
+    const CELLO_LABELS = ["C", "G", "D", "A"];
+    const CELLO_OCTAVES = [2, 2, 3, 3];
+
+    let baseA4 = 440;
+    let celloLockMode = true; // true = lock to C2/G2/D3/A3, false = full chromatic
+    let audioCtx = null;
+    let analyser = null;
+    let timeBuffer = null;
+    let isListening = false;
+
+    // Smoothing & hold state
+    let smoothedFreq = 0;
+    let lastValidTime = 0;
+
+    // Reference Drone state
+    let activeDroneIdx = -1;
+    let droneOsc = null;
+    let droneGain = null;
+
+    // DOM Elements
+    const startOverlay = document.getElementById("start-overlay");
+    const startBtn = document.getElementById("start-btn");
+    const errorMsg = document.getElementById("error-msg");
+    const micDot = document.getElementById("mic-dot");
+    const modeBtn = document.getElementById("mode-btn");
+    const calBtn = document.getElementById("cal-btn");
+    const needle = document.getElementById("needle");
+    const needleLine = document.getElementById("needle-line");
+    const noteEl = document.getElementById("note-el");
+    const centsEl = document.getElementById("cents-el");
+    const hzEl = document.getElementById("hz-el");
+    const hintEl = document.getElementById("hint-el");
+    const stringBtns = document.querySelectorAll(".string-btn");
+
+    function midiToFreq(midi) {
+      return baseA4 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    function updateStringHzLabels() {
+      CELLO_MIDI.forEach((midi, i) => {
+        document.getElementById(`str-hz-${i}`).textContent = midiToFreq(midi).toFixed(1) + " Hz";
+      });
+    }
+
+    // --- 3. Screen Wake Lock (keeps tablet screen on while tuning) ---
+    async function requestWakeLock() {
+      if ("wakeLock" in navigator) {
+        try {
+          await navigator.wakeLock.request("screen");
+        } catch (e) { /* Ignore if battery saver blocks it */ }
+      }
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && isListening) requestWakeLock();
+    });
+
+    // --- 4. Audio Initialization ---
+    startBtn.addEventListener("click", async () => {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") await audioCtx.resume();
+
+        // Disable Android voice processing so 65.4Hz C2 isn't stripped as background noise
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            autoGainControl: false,
+            noiseSuppression: false,
+            channelCount: 1
+          }
+        });
+
+        const source = audioCtx.createMediaStreamSource(stream);
+
+        // Low-pass filter at 900 Hz to attenuate bow scratch & high room noise
+        const lowpass = audioCtx.createBiquadFilter();
+        lowpass.type = "lowpass";
+        lowpass.frequency.value = 900;
+        lowpass.Q.value = 0.7;
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 4096; // ~85ms window at 48kHz (captures 5.5 full cycles of C2)
+        timeBuffer = new Float32Array(analyser.fftSize);
+
+        source.connect(lowpass);
+        lowpass.connect(analyser);
+
+        isListening = true;
+        micDot.classList.add("active");
+        startOverlay.classList.add("hidden");
+        requestWakeLock();
+        requestAnimationFrame(updateLoop);
+      } catch (err) {
+        errorMsg.style.display = "block";
+        errorMsg.textContent = "Microphone access failed: " + err.message + ". Ensure you are using HTTPS or localhost.";
+      }
+    });
+
+    // --- 5. McLeod Pitch Method (NSDF) Autocorrelation ---
+    // Specifically engineered to avoid octave-jumping on the Cello's C2 string
+    function detectPitchNSDF(buf, sampleRate) {
+      const W = 2048; // Analysis window
+      // 1. Check RMS signal energy
+      let rms = 0;
+      for (let i = 0; i < W; i++) {
+        rms += buf[i] * buf[i];
+      }
+      rms = Math.sqrt(rms / W);
+      if (rms < 0.008) return -1; // Silence threshold
+
+      // Search range: 52 Hz (below C2) to 550 Hz (above A3)
+      const minLag = Math.floor(sampleRate / 550);
+      const maxLag = Math.min(Math.floor(sampleRate / 52), W - 2);
+
+      const nsdf = new Float32Array(maxLag + 1);
+
+      // Compute Normalized Square Difference Function
+      for (let tau = minLag; tau <= maxLag; tau++) {
+        let acf = 0;
+        let divisor = 0;
+        const limit = W - tau;
+        for (let i = 0; i < limit; i++) {
+          const x0 = buf[i];
+          const xTau = buf[i + tau];
+          acf += x0 * xTau;
+          divisor += x0 * x0 + xTau * xTau;
+        }
+        nsdf[tau] = divisor > 0 ? (2 * acf) / divisor : 0;
+      }
+
+      // Find key maxima (highest peak inside each positive lobe after a zero crossing)
+      const peaks = [];
+      let inPositiveLobe = false;
+      let curMaxVal = -1;
+      let curMaxTau = 0;
+
+      // Advance past the initial drop-off near minLag if starting positive
+      let startTau = minLag;
+      while (startTau < maxLag && nsdf[startTau] > 0 && nsdf[startTau + 1] < nsdf[startTau]) {
+        startTau++;
+      }
+
+      for (let tau = startTau; tau <= maxLag; tau++) {
+        const val = nsdf[tau];
+        if (val > 0) {
+          if (!inPositiveLobe) {
+            inPositiveLobe = true;
+            curMaxVal = val;
+            curMaxTau = tau;
+          } else if (val > curMaxVal) {
+            curMaxVal = val;
+            curMaxTau = tau;
+          }
+        } else if (inPositiveLobe) {
+          peaks.push({ tau: curMaxTau, val: curMaxVal });
+          inPositiveLobe = false;
+        }
+      }
+      if (inPositiveLobe && curMaxVal > 0) {
+        peaks.push({ tau: curMaxTau, val: curMaxVal });
+      }
+
+      if (peaks.length === 0) return -1;
+
+      // Find global maximum peak
+      let globalMax = 0;
+      for (let i = 0; i < peaks.length; i++) {
+        if (peaks[i].val > globalMax) globalMax = peaks[i].val;
+      }
+
+      // Clarity gate: reject noisy unpitched bow scraping
+      if (globalMax < 0.55) return -1;
+
+      // Pick the FIRST peak that exceeds 82% of globalMax.
+      // This picks the true fundamental period (e.g. C2) even if the 2nd harmonic is slightly stronger.
+      const threshold = 0.82 * globalMax;
+      let chosenPeak = peaks[0];
+      for (let i = 0; i < peaks.length; i++) {
+        if (peaks[i].val >= threshold) {
+          chosenPeak = peaks[i];
+          break;
+        }
+      }
+
+      const bestTau = chosenPeak.tau;
+
+      // Parabolic interpolation for sub-sample precision
+      let refinedTau = bestTau;
+      if (bestTau > minLag && bestTau < maxLag) {
+        const y1 = nsdf[bestTau - 1];
+        const y2 = nsdf[bestTau];
+        const y3 = nsdf[bestTau + 1];
+        const denom = 2 * y2 - y1 - y3;
+        if (Math.abs(denom) > 1e-6) {
+          refinedTau = bestTau + (y3 - y1) / (2 * denom);
+        }
+      }
+
+      return sampleRate / refinedTau;
+    }
+
+    // --- 6. Main UI & Pitch Matching Loop ---
+    function updateLoop(now) {
+      requestAnimationFrame(updateLoop);
+      if (!isListening || activeDroneIdx !== -1) return;
+
+      analyser.getFloatTimeDomainData(timeBuffer);
+      const rawFreq = detectPitchNSDF(timeBuffer, audioCtx.sampleRate);
+
+      if (rawFreq > 0) {
+        lastValidTime = now;
+        // Smooth sudden jumps vs steady pitch
+        if (smoothedFreq === 0 || Math.abs(rawFreq - smoothedFreq) / smoothedFreq > 0.06) {
+          smoothedFreq = rawFreq;
+        } else {
+          smoothedFreq = smoothedFreq * 0.72 + rawFreq * 0.28;
+        }
+        renderPitch(smoothedFreq);
+      } else if (now - lastValidTime > 1200) {
+        // Fade back to idle state after 1.2s of silence
+        smoothedFreq = 0;
+        document.body.classList.remove("in-tune-bg");
+        noteEl.classList.remove("in-tune");
+        hintEl.textContent = "";
+      }
+    }
+
+    function renderPitch(freq) {
+      let targetNote = "";
+      let targetOctave = 0;
+      let targetFreq = 0;
+      let closestStringIdx = -1;
+
+      if (celloLockMode) {
+        // Find closest cello string in log-frequency (cents) space
+        let minCentsDist = Infinity;
+        CELLO_MIDI.forEach((midi, idx) => {
+          const sFreq = midiToFreq(midi);
+          const dist = Math.abs(1200 * Math.log2(freq / sFreq));
+          if (dist < minCentsDist) {
+            minCentsDist = dist;
+            targetFreq = sFreq;
+            targetNote = CELLO_LABELS[idx];
+            targetOctave = CELLO_OCTAVES[idx];
+            closestStringIdx = idx;
+          }
+        });
+      } else {
+        // Chromatic mode
+        const midiFloat = 69 + 12 * Math.log2(freq / baseA4);
+        const midiNearest = Math.round(midiFloat);
+        targetFreq = midiToFreq(midiNearest);
+        targetNote = NOTE_NAMES[((midiNearest % 12) + 12) % 12];
+        targetOctave = Math.floor(midiNearest / 12) - 1;
+      }
+
+      // Highlight matching string button at bottom
+      stringBtns.forEach((btn, idx) => {
+        btn.classList.toggle("target-highlight", idx === closestStringIdx);
+      });
+
+      const cents = 1200 * Math.log2(freq / targetFreq);
+      const clampedCents = Math.max(-50, Math.min(50, cents));
+      const angle = (clampedCents / 50) * 75; // -75 deg to +75 deg
+
+      needle.style.transform = `rotate(${angle.toFixed(1)}deg)`;
+      noteEl.innerHTML = `${targetNote}<span class="octave-sub">${targetOctave}</span>`;
+      hzEl.textContent = `${freq.toFixed(1)} Hz (Target: ${targetFreq.toFixed(1)} Hz)`;
+
+      const roundedCents = Math.round(cents);
+      const sign = roundedCents > 0 ? "+" : "";
+      centsEl.textContent = `${sign}${roundedCents} ¢`;
+
+      const absCents = Math.abs(cents);
+      if (absCents <= 3.5) {
+        // In Tune!
+        document.body.classList.add("in-tune-bg");
+        noteEl.classList.add("in-tune");
+        needleLine.setAttribute("stroke", "#10b981");
+        centsEl.style.color = "#10b981";
+        hintEl.textContent = "✓ IN TUNE";
+        hintEl.style.color = "#10b981";
+      } else {
+        document.body.classList.remove("in-tune-bg");
+        noteEl.classList.remove("in-tune");
+        const color = absCents <= 12 ? "#f59e0b" : "#ef4444";
+        needleLine.setAttribute("stroke", color);
+        centsEl.style.color = color;
+        hintEl.style.color = color;
+        hintEl.textContent = cents < 0 ? "▲ Tune Up (Flat)" : "▼ Tune Down (Sharp)";
+      }
+    }
+
+    // --- 7. Top Controls & Reference Tone Synthesizer ---
+    modeBtn.addEventListener("click", () => {
+      celloLockMode = !celloLockMode;
+      modeBtn.textContent = celloLockMode ? "Cello Lock" : "Chromatic";
+      modeBtn.classList.toggle("active", celloLockMode);
+      if (!celloLockMode) {
+        stringBtns.forEach(b => b.classList.remove("target-highlight"));
+      }
+    });
+
+    calBtn.addEventListener("click", () => {
+      baseA4 = baseA4 === 440 ? 442 : 440;
+      calBtn.textContent = `A = ${baseA4} Hz`;
+      calBtn.classList.toggle("active", baseA4 === 442);
+      updateStringHzLabels();
+      if (activeDroneIdx !== -1 && droneOsc) {
+        droneOsc.frequency.setValueAtTime(midiToFreq(CELLO_MIDI[activeDroneIdx]), audioCtx.currentTime);
+      }
+    });
+
+    function stopDrone() {
+      if (droneOsc) {
+        try {
+          droneGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.04);
+          setTimeout(() => {
+            try { droneOsc.stop(); droneOsc.disconnect(); } catch (e) {}
+          }, 150);
+        } catch (e) {}
+        droneOsc = null;
+      }
+      activeDroneIdx = -1;
+      stringBtns.forEach(btn => {
+        btn.classList.remove("playing");
+        btn.querySelector(".s-icon").textContent = "🔊 Tone";
+      });
+      centsEl.textContent = "Play a string";
+      hintEl.textContent = "";
+    }
+
+    function toggleDrone(idx) {
+      if (!audioCtx) return;
+      if (activeDroneIdx === idx) {
+        stopDrone();
+        return;
+      }
+      stopDrone();
+
+      activeDroneIdx = idx;
+      const freq = midiToFreq(CELLO_MIDI[idx]);
+
+      // Create warm cello-like harmonic tone so C2 (65.4Hz) is clearly audible on tablet speakers
+      const real = new Float32Array([0, 1.0, 0.85, 0.55, 0.35, 0.2, 0.1]);
+      const imag = new Float32Array(real.length);
+      const wave = audioCtx.createPeriodicWave(real, imag);
+
+      droneOsc = audioCtx.createOscillator();
+      droneOsc.setPeriodicWave(wave);
+      droneOsc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = freq * 5;
+
+      droneGain = audioCtx.createGain();
+      droneGain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+      droneGain.gain.exponentialRampToValueAtTime(0.35, audioCtx.currentTime + 0.08);
+
+      droneOsc.connect(filter);
+      filter.connect(droneGain);
+      droneGain.connect(audioCtx.destination);
+      droneOsc.start();
+
+      // Update UI to reflect active reference tone
+      stringBtns[idx].classList.add("playing");
+      stringBtns[idx].querySelector(".s-icon").textContent = "⏹ Stop";
+      document.body.classList.remove("in-tune-bg");
+      noteEl.classList.remove("in-tune");
+      needle.style.transform = "rotate(0deg)";
+      needleLine.setAttribute("stroke", "#38bdf8");
+      noteEl.innerHTML = `${CELLO_LABELS[idx]}<span class="octave-sub">${CELLO_OCTAVES[idx]}</span>`;
+      centsEl.textContent = "Reference Tone Playing";
+      centsEl.style.color = "#38bdf8";
+      hzEl.textContent = `${freq.toFixed(1)} Hz`;
+      hintEl.textContent = "Tap button again to resume mic";
+      hintEl.style.color = "#94a3b8";
+    }
+
+    stringBtns.forEach((btn, idx) => {
+      btn.addEventListener("click", () => toggleDrone(idx));
+    });
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => console.log('Tuner offline cache ready:', reg.scope))
+      .catch((err) => console.error('ServiceWorker registration failed:', err));
+  });
+}
+  </script>
+</body>
+</html>
